@@ -174,8 +174,9 @@ class ConvAgent(Agent):
         episode = 0
         ep = -1
         max_score = 0
-        range_list = range(0, 400)
-        ran_range = random.sample(range_list, 400)
+        range_list = range(0, 801)
+        ran_range = random.sample(range_list, 801)
+        # score_threshold = 32
 
         while episode <= EPISODES:
             if episode <= 15:
@@ -183,7 +184,7 @@ class ConvAgent(Agent):
             else:
                 self.learning_rate = 0.0001
             ep += 1
-            if ep > 399:
+            if ep > 800:
                 ep = 0
                 episode += 1
                 total_score = 0
@@ -202,10 +203,10 @@ class ConvAgent(Agent):
                     total_score += score
                     print("episode:", episode, "  score:", score)
                 if total_score > max_score:
-                    torch.save(self.model, "./2048_dqn_conv5_" + str(episode))
-                ran_range = random.sample(range_list, 400)
+                    torch.save(self.model, "./2048_dqn_2nd" + str(episode))
+                ran_range = random.sample(range_list, 801)
             r = ran_range[ep]
-            data_dir = "./dataset2/data" + str(r) + ".txt"
+            data_dir = "./new_data/data" + str(r) + ".txt"
             dataset = Dataset(txt=data_dir)
             for _, (states, action) in enumerate(load_data(dataset)):
                 action = action.cpu().numpy()
@@ -222,45 +223,86 @@ class ConvAgent(Agent):
             #torch.save(self.model, "./2048_dqn_conv4_" + str(episode))
 
     def fine_tune(self):
-        file = open("./result2.txt", "w")
-        EPISODES = 2000
-        learning_rate = 0.0001
-        env = Game(size=4, score_to_win=2048)
-        self.model = torch.load('./2048_dqn_conv2_15')
-        optimizer = optim.Adam(self.model.parameters(), lr=learning_rate)
+        EPISODES = 40
+        env = Game(size=GAME_SIZE, score_to_win=SCORE_TO_WIN)
+        # game = Game(size=GAME_SIZE, score_to_win=SCORE_TO_WIN)
+        # state_size = 16
+        # action_size = 4
+
+        self.learning_rate = 0.0001
+
+        # self.agent = DQNAgent(state_size, action_size)
+        # self.expect_max = ExpectiMaxAgent(game)
+        # self.agent_max = DQNAgent(state_size, action_size, memory_size=50000)
+
+        scores, episodes = [], []
+        optimizer = optim.Adam(self.model.parameters(), lr=self.learning_rate)
         loss_function = nn.NLLLoss()
-        for ep in range(EPISODES):
-            state = env.reset()
-            target_agent = ExpectiMaxAgent(env)
-            while env.end == 0:
-                state = env.board
-                state = make_input(state)
-                state = np.expand_dims(state, axis=0)
-                state = torch.cuda.FloatTensor(state)
-                state = Variable(state).float()
-                target_action = target_agent.step()
-                action = self.model(state)
-                target_action = np.expand_dims(target_action, axis=0)
-                target_action = torch.cuda.LongTensor(target_action)
-                target_action = Variable(target_action)
-                loss = loss_function(action, target_action)
+        episode = 0
+        ep = -1
+        max_score = 0
+        range_list = range(0, 400)
+        ran_range = random.sample(range_list, 400)
+        agent = ConvAgent(env)
+        # score_threshold = 32
+
+        while episode <= EPISODES:
+            if episode <= 15:
+                self.learning_rate = 0.001
+            else:
+                self.learning_rate = 0.0001
+            ep += 1
+            if ep > 399:
+                ep = 0
+                episode += 1
+                total_score = 0
+                for j in range(10):
+                    state = env.reset()
+                    state = make_input(state)
+                    state = np.expand_dims(state, axis=0)
+                    agent.model = torch.load('./2048_dqn_conv5_15')
+                    while env.end == 0:
+                        if agent.game.score <= 32:
+                            action = agent.get_action(state)
+                            env.move(action)
+                            state = env.board
+                            state = make_input(state)
+                            state = np.expand_dims(state, axis=0)
+                        else:
+                            # get action for the current state and go one step in environment
+                            action = self.get_action(state)
+                            env.move(action)
+                            state = env.board
+                            state = make_input(state)
+                            state = np.expand_dims(state, axis=0)
+                    score = env.final_score()
+                    total_score += score
+                    print("episode:", episode, "  score:", score)
+                if total_score > max_score:
+                    torch.save(self.model, "./2048_dqn_2nd_ep" + str(episode))
+                ran_range = random.sample(range_list, 400)
+            r = ran_range[ep]
+            data_dir = "./dataset_new/data" + str(r) + ".txt"
+            dataset = Dataset(txt=data_dir)
+            for _, (states, action) in enumerate(load_data(dataset)):
+                action = action.cpu().numpy()
+                states = trans_input(states)
+                states = torch.cuda.FloatTensor(states)
+                states = Variable(states).float()
+                action = torch.cuda.LongTensor(action)
+                action = Variable(action)
+                prediction = self.model(states)
+                loss = loss_function(prediction, action)
                 optimizer.zero_grad()
                 loss.backward()
                 optimizer.step()
-                _, actions = torch.max(action, 1)
-                env.move(actions)
-            score = env.final_score()
-            print("episode:", ep, "  score:", score, file=file)
-        torch.save(self.model, "./2048_dqn_conv5")
 
     def step(self):
         count = [0, 0, 0, 0]
         if not self.load:
-            self.model = torch.load('./2048_dqn_conv5_15')
-            self.model1 = torch.load('./2048_dqn_conv5_12')
-            self.model2 = torch.load('./2048_dqn_conv5_11')
-            #self.model3 = torch.load('./2048_dqn_conv2_20')
-            #self.model4 = torch.load('./2048_dqn_conv2_18')
+            self.model = torch.load('./2048_dqn_2nd1')
+            self.model1 = torch.load('./2048_dqn_2nd2')
+            self.model2 = torch.load('./2048_dqn_2nd3')
             self.load = True
 
         #state = np.reshape(self.game.board, [1, 16]).squeeze()
@@ -268,16 +310,44 @@ class ConvAgent(Agent):
         observation = make_input(self.game.board)
         observation = np.expand_dims(observation, axis=0)
 
+        board1 = np.rot90(self.game.board)
+        board2 = np.rot90(board1)
+        board3 = np.rot90(board2)
+        observation1 = make_input(board1)
+        observation2 = make_input(board2)
+        observation3 = make_input(board3)
+        observation1 = np.expand_dims(observation1, axis=0)
+        observation2 = np.expand_dims(observation2, axis=0)
+        observation3 = np.expand_dims(observation3, axis=0)
+
         direction = self.get_action(observation)
         count[direction] += 1
         direction1 = self.get_action(observation, model=self.model1)
         count[direction1] += 1
         direction2 = self.get_action(observation, model=self.model2)
         count[direction2] += 1
-        #direction3 = self.get_action(observation, model=self.model3)
-        #count[direction3] += 1
-        #direction4 = self.get_action(observation, model=self.model4)
-        #count[direction4] += 1
+
+        direction = self.get_action(observation1)
+        count[(direction+3) % 4] += 1
+        direction1 = self.get_action(observation1, model=self.model1)
+        count[(direction1 + 3) % 4] += 1
+        direction2 = self.get_action(observation1, model=self.model2)
+        count[(direction2 + 3) % 4] += 1
+
+        direction = self.get_action(observation2)
+        count[(direction + 2) % 4] += 1
+        direction1 = self.get_action(observation2, model=self.model1)
+        count[(direction1 + 2) % 4] += 1
+        direction2 = self.get_action(observation2, model=self.model2)
+        count[(direction2 + 2) % 4] += 1
+
+        direction = self.get_action(observation3)
+        count[(direction + 1) % 4] += 1
+        direction1 = self.get_action(observation3, model=self.model1)
+        count[(direction1 + 1) % 4] += 1
+        direction2 = self.get_action(observation3, model=self.model2)
+        count[(direction2 + 1) % 4] += 1
+
         direction = count.index(max(count))
 
         return direction
@@ -293,3 +363,4 @@ if __name__ == "__main__":
     game_train = Game(size=GAME_SIZE, score_to_win=SCORE_TO_WIN)
     agent = ConvAgent(game_train)
     agent.train()
+    #agent.fine_tune()
